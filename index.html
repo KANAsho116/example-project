@@ -10,6 +10,8 @@
     />
     <title>ふたりの作業ボード</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="supabase-config.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -51,13 +53,75 @@
           </div>
         </section>
 
+        <section class="cloud-panel" aria-labelledby="cloudTitle">
+          <div class="cloud-heading">
+            <div>
+              <h2 id="cloudTitle">オンライン共有</h2>
+              <p id="cloudStatus">この端末に保存しています。</p>
+            </div>
+            <button class="button button-secondary" id="signOut" type="button" hidden>サインアウト</button>
+          </div>
+          <form class="cloud-auth" id="authForm">
+            <label class="cloud-field">
+              <span>メールアドレス</span>
+              <input id="authEmail" type="email" autocomplete="username" required />
+            </label>
+            <label class="cloud-field">
+              <span>パスワード</span>
+              <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required />
+            </label>
+            <div class="cloud-auth-actions">
+              <button class="button button-primary" type="submit" data-auth-action="signin">サインイン</button>
+              <button class="button button-secondary" type="submit" data-auth-action="signup">アカウントを作成</button>
+            </div>
+          </form>
+          <div class="cloud-workspace" id="cloudWorkspace" hidden>
+            <p id="signedInUser" class="cloud-user"></p>
+            <div class="cloud-controls">
+              <label class="cloud-field">
+                <span>保存先</span>
+                <select id="cloudBoardSelect">
+                  <option value="">この端末に保存する</option>
+                </select>
+              </label>
+              <div class="cloud-field">
+                <label for="newBoardName">共有ボードを作成</label>
+                <div class="cloud-inline-control">
+                  <input id="newBoardName" type="text" maxlength="60" value="ふたりの作業ボード" />
+                  <button class="button button-secondary" id="createBoard" type="button">作成</button>
+                </div>
+              </div>
+              <div class="cloud-field">
+                <label for="joinCode">招待コードで参加</label>
+                <div class="cloud-inline-control">
+                  <input id="joinCode" type="text" autocomplete="off" />
+                  <button class="button button-secondary" id="joinBoard" type="button">参加</button>
+                </div>
+              </div>
+              <div class="cloud-invite" id="invitePanel" hidden>
+                <label for="inviteCode">このボードへの招待コード</label>
+                <div class="cloud-inline-control">
+                  <input id="inviteCode" type="text" readonly />
+                  <button class="button button-secondary" id="copyInvite" type="button">コピー</button>
+                </div>
+                <button class="text-button" id="rotateInvite" type="button">新しい招待コードを発行</button>
+              </div>
+              <button class="button button-secondary" id="importLocalTasks" type="button" hidden>この端末のタスクを共有ボードに追加</button>
+            </div>
+          </div>
+          <p class="cloud-message" id="cloudMessage" role="status" aria-live="polite"></p>
+        </section>
+
         <section class="board-section" aria-label="タスクボード">
           <div class="board-toolbar">
             <div>
               <h2>プロジェクトボード</h2>
-              <p>タスクを分け合って、ひとつずつ進めよう。</p>
+              <p>タスクを分け合って、ひとつずつ進めよう。優先度の高い順に表示します。</p>
             </div>
             <div class="filters">
+              <button class="button button-secondary backup-button" id="importTasks" type="button">バックアップを読み込む</button>
+              <button class="button button-secondary backup-button" id="exportTasks" type="button">バックアップを書き出す</button>
+              <input id="importFile" type="file" accept="application/json,.json" hidden />
               <label class="search-box">
                 <span class="visually-hidden">タスクを検索</span>
                 <span aria-hidden="true">⌕</span>
@@ -70,6 +134,12 @@
                   <option value="dev-a">開発者 A</option>
                   <option value="dev-b">開発者 B</option>
                   <option value="">未割当</option>
+                </select>
+              </label>
+              <label class="filter-select">
+                <span class="visually-hidden">ラベルで絞り込む</span>
+                <select id="labelFilter">
+                  <option value="all">すべてのラベル</option>
                 </select>
               </label>
             </div>
@@ -105,7 +175,7 @@
 
       <footer class="app-footer">
         <span>小さく作って、いっしょに育てる。</span>
-        <span class="local-note"><span class="lock-icon" aria-hidden="true">◈</span> このブラウザーに保存</span>
+        <span class="local-note"><span class="lock-icon" aria-hidden="true">◈</span> ローカルまたは共有ボードに保存</span>
       </footer>
     </div>
 
@@ -134,6 +204,20 @@
             </select>
           </label>
           <label class="form-field">
+            <span>優先度</span>
+            <select id="taskPriority" name="priority">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-row">
+          <label class="form-field">
+            <span>期限 <span class="optional-mark">任意</span></span>
+            <input id="taskDueDate" name="dueDate" type="date" />
+          </label>
+          <label class="form-field">
             <span>進み具合</span>
             <select id="taskStatus" name="status">
               <option value="backlog">これから</option>
@@ -142,6 +226,10 @@
             </select>
           </label>
         </div>
+        <label class="form-field">
+          <span>ラベル <span class="optional-mark">任意・カンマ区切り</span></span>
+          <input id="taskLabels" name="labels" type="text" maxlength="200" placeholder="例：デザイン, バグ修正" />
+        </label>
         <div class="dialog-actions">
           <button class="button button-secondary" id="cancelTaskDialog" type="button">キャンセル</button>
           <button class="button button-primary" type="submit">保存する</button>
@@ -150,6 +238,10 @@
     </dialog>
 
     <p class="visually-hidden" id="liveMessage" role="status" aria-live="polite"></p>
+    <div class="undo-bar" id="undoBar" hidden>
+      <span id="undoMessage"></span>
+      <button class="button button-secondary" id="undoDelete" type="button">取り消す</button>
+    </div>
   </body>
 </html>
 
